@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Info Gempa Terkini</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Konfigurasi Tailwind untuk Font Inter (Opsional tapi lebih rapi) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        dark: '#121212',
+                        card: '#1E1E1E',
+                        accent: '#BB86FC'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Container Utama -->
+    <div class="w-full max-w-md bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700">
+        
+        <!-- Header -->
+        <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fas fa-globe-asia text-teal-400"></i> Gempa Terkini BMKG
+            </h1>
+            <button onclick="fetchGempa()" class="text-gray-400 hover:text-white transition-colors" title="Refresh Data">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <!-- Loading State (Default Visible) -->
+        <div id="loading-state" class="flex flex-col items-center justify-center py-20 space-y-4">
+            <!-- Ini file load.gif sesuai request -->
+            <img src="assets/load.gif" alt="Loading..." class="w-16 h-16 object-contain">
+            <p class="text-gray-400 text-sm animate-pulse">Mengambil data...</p>
+        </div>
+
+        <!-- Error State (Hidden by Default) -->
+        <div id="error-state" class="hidden flex flex-col items-center justify-center py-10 text-center px-6">
+            <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-3"></i>
+            <p class="text-red-400 font-medium">Gagal memuat data.</p>
+            <p id="error-message" class="text-gray-500 text-xs mt-1">Silakan coba lagi nanti.</p>
+            <button onclick="fetchGempa()" class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">
+                Coba Lagi
+            </button>
+        </div>
+
+        <!-- Content State (Hidden by Default) -->
+        <div id="content-state" class="hidden">
+            
+            <!-- Peta Guncangan (Image) -->
+            <div class="relative w-full h-64 bg-gray-900 group overflow-hidden">
+                <img id="shakemap" src="" alt="Peta Guncangan" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                <div class="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent opacity-80"></div>
+                
+                <!-- Magnitude Overlay -->
+                <div class="absolute bottom-4 left-4">
+                    <div class="flex items-baseline gap-1">
+                        <span id="magnitudo" class="text-5xl font-bold text-teal-400">0.0</span>
+                        <span class="text-lg font-semibold text-gray-300">SR</span>
+                    </div>
+                    <p class="text-xs text-teal-200 mt-1 uppercase tracking-wider font-semibold">Magnitudo</p>
+                </div>
+            </div>
+
+            <!-- Detail Informasi -->
+            <div class="p-6 space-y-6">
+                
+                <!-- Waktu & Kedalaman -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">
+                        <div class="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                            <i class="fas fa-clock"></i> Waktu
+                        </div>
+                        <p id="jam" class="font-semibold text-white">--:-- WIB</p>
+                        <p id="tanggal" class="text-xs text-gray-400">-- --- ----</p>
+                    </div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">
+                        <div class="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                            <i class="fas fa-ruler-vertical"></i> Kedalaman
+                        </div>
+                        <p id="kedalaman" class="font-semibold text-white">-- km</p>
+                    </div>
+                </div>
+
+                <!-- Koordinat -->
+                <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600 flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                            <i class="fas fa-map-marked-alt"></i> Koordinat
+                        </div>
+                        <p class="text-sm font-mono text-teal-300">
+                            <span id="lintang">--</span>, <span id="bujur">--</span>
+                        </p>
+                    </div>
+                    <i class="fas fa-compass text-gray-500 text-2xl"></i>
+                </div>
+
+                <!-- Wilayah -->
+                <div>
+                    <h3 class="text-gray-400 text-xs uppercase tracking-wide mb-2 flex items-center gap-2">
+                        <i class="fas fa-map-marker-alt"></i> Lokasi
+                    </h3>
+                    <p id="wilayah" class="text-lg font-medium leading-relaxed text-gray-100">
+                        Memuat lokasi...
+                    </p>
+                </div>
+
+                <!-- Potensi (Alert) -->
+                <div class="bg-teal-900/30 border border-teal-800 rounded-lg p-3 flex items-start gap-3">
+                    <i class="fas fa-info-circle text-teal-400 mt-1"></i>
+                    <div>
+                        <p class="text-xs text-teal-500 font-bold mb-1">POTENSI</p>
+                        <p id="potensi" class="text-sm text-teal-100">--</p>
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- Footer Credit -->
+            <div class="bg-gray-900 p-3 text-center text-xs text-gray-600 border-t border-gray-700">
+                Data provided by BMKG via API
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Javascript Logic -->
+    <script>
+        const API_URL = "https://all-apiv2.netlify.app/api/gempa-terkini";
+
+        // Element Selectors
+        const loadingState = document.getElementById('loading-state');
+        const contentState = document.getElementById('content-state');
+        const errorState = document.getElementById('error-state');
+        const errorMessage = document.getElementById('error-message');
+
+        // Data Elements
+        const elMagnitudo = document.getElementById('magnitudo');
+        const elJam = document.getElementById('jam');
+        const elTanggal = document.getElementById('tanggal');
+        const elKedalaman = document.getElementById('kedalaman');
+        const elWilayah = document.getElementById('wilayah');
+        const elPotensi = document.getElementById('potensi');
+        const elLintang = document.getElementById('lintang');
+        const elBujur = document.getElementById('bujur');
+        const elShakemap = document.getElementById('shakemap');
+
+        async function fetchGempa() {
+            // 1. Reset UI to Loading State
+            loadingState.classList.remove('hidden');
+            contentState.classList.add('hidden');
+            errorState.classList.add('hidden');
+
+            try {
+                // 2. Fetch Data
+                const response = await fetch(API_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const jsonResponse = await response.json();
+                
+                // Cek struktur response
+                if (!jsonResponse.data || !jsonResponse.data.info_gempa) {
+                   throw new Error("Format data API tidak sesuai");
+                }
+
+                const data = jsonResponse.data;
+                const info = data.info_gempa;
+                const waktu = data.waktu;
+                const koordinat = data.koordinat;
+                const gambar = data.gambar;
+
+                // 3. Populate Data to UI
+                elMagnitudo.textContent = info.magnitudo;
+                elKedalaman.textContent = info.kedalaman;
+                elWilayah.textContent = info.wilayah;
+                elPotensi.textContent = info.potensi;
+                
+                // Waktu
+                elJam.textContent = waktu.jam;
+                elTanggal.textContent = waktu.tanggal;
+
+                // Koordinat
+                elLintang.textContent = koordinat.lintang;
+                elBujur.textContent = koordinat.bujur;
+
+                // Gambar (Pastikan URL valid)
+                // API mereturn URL penuh, jadi langsung pakai
+                elShakemap.src = gambar.shakemap_url;
+                
+                // Handle image error (jika gambar BMKG down)
+                elShakemap.onerror = function() {
+                    this.src = 'https://placehold.co/600x400/1f2937/FFF?text=No+Map+Available';
+                };
+
+                // 4. Show Content
+                // Sedikit delay agar loading gif terlihat (opsional, bisa dihapus timeoutnya)
+                setTimeout(() => {
+                    loadingState.classList.add('hidden');
+                    contentState.classList.remove('hidden');
+                }, 1000); // delay 1 detik untuk estetika
+
+            } catch (error) {
+                console.error("Error fetching earthquake data:", error);
+                
+                // Show Error UI
+                loadingState.classList.add('hidden');
+                contentState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+                errorMessage.textContent = error.message;
+            }
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', fetchGempa);
+
+    </script>
+</body>
+</html>
+
